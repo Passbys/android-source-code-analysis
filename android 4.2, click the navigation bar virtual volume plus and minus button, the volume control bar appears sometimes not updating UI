@@ -1,0 +1,61 @@
+1. follows modify frameworks / base / core / java / android / widget / ProgressBar.java
+
+    private class RefreshProgressRunnable implements Runnable {
+        public void run () {
+            if (mRefreshIsPosted == true) {/ / added by shenjianjun for: update volume progress bar's UI (volume panel view) anytime the virtual volume key from navigation bar is pressed. 2013.08.30
+                synchronized (ProgressBar.this) {
+                    final int count = mRefreshData.size ();
+                    for (int i = 0; i <count; i + +) {
+                        final RefreshData rd = mRefreshData.get (i);
+                        doRefreshProgress (rd.id, rd.progress, rd.fromUser, true);
+                        rd.recycle ();
+                    }
+                    mRefreshData.clear ();
+                    mRefreshIsPosted = false;
+                }
+            } / / Added by shenjianjun for: update volume progress bar's UI (volume panel view) anytime the virtual volume key from navigation bar is pressed. 2013.08.30
+        }
+    }
+...
+    @ Override
+    protected void onDetachedFromWindow () {
+        if (mIndeterminate) {
+            stopAnimation ();
+        }
+        if (mRefreshProgressRunnable! = null) {
+            removeCallbacks (mRefreshProgressRunnable);
+        }
+        if (mRefreshProgressRunnable! = null && mRefreshIsPosted) {
+            removeCallbacks (mRefreshProgressRunnable);
+        }
+        mRefreshIsPosted = false ;/ / added by shenjianjun for: update volume progress bar's UI (volume panel view) anytime the virtual volume key from navigation bar is pressed. 2013.08.30
+        if (mAccessibilityEventSender! = null) {
+            removeCallbacks (mAccessibilityEventSender);
+        }
+        / / This should come after stopAnimation (), otherwise an invalidate message remains in the
+        / / Queue, which can prevent the entire view hierarchy from being GC'ed during a rotation
+        super.onDetachedFromWindow ();
+        mAttached = false;
+    }
+
+2. recompile and install to take effect :
+mmm frameworks / base /-j16
+
+Rationale :
+Because the volume control button has two : the video player control bar to adjust the volume buttons and the navigation bar volume control virtual keys , which two are in the process of adjusting the volume , will call ProgressBar.java in :
+    private synchronized void refreshProgress (int id, int progress, boolean fromUser) {
+        if (mUiThreadId == Thread.currentThread (). getId ()) {
+            doRefreshProgress (id, progress, fromUser, true);
+        } Else {
+            if (mRefreshProgressRunnable == null) {
+                mRefreshProgressRunnable = new RefreshProgressRunnable ();
+            }
+
+            final RefreshData rd = RefreshData.obtain (id, progress, fromUser);
+            mRefreshData.add (rd);
+            if (mAttached &&! mRefreshIsPosted) {
+                post (mRefreshProgressRunnable);
+                mRefreshIsPosted = true;
+            }
+        }
+    }
